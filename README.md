@@ -26,25 +26,6 @@ have been used both to test and further refine development of this
 [Toit MPU6050 driver/library](https://www.github.com/milkmansson/toit-mpu6050)
 implementation.)
 
-## Parts Required
-I built this with parts I had on hand.  Construction with other hardware
-and drivers is definitely possible, but may require some work.
-- Toit - The platform needs to be installed on your ESP32, follow the
-  instructions found here.
-- ESP32 based DFRobot ESP32c6 Beetle (for the size constraints and very
-  basic battery management built-in.)
-- MPU6050 I2C based motion sensing device.  (It could be argued that
-  newer devices would be better choices, however this module is still
-  cheaply available and good enough for this use case.  When I have other
-  devices to hand, they cans be incorporated!)
-- SSD1306 I2C based OLED Screen.
-- LED and resistor for indicating state (Optional).
-- Connecting wires and other minor materials.
-- Lipo battery compatible with ESP32 board, and the expected device
-  enclosure.  (Note polarity of the JST connector on commercial battery
-  modules from overseas - these may not be the same as your ESP32 when
-  they arrive.)
-
 ## How it works (State Machine)
 | Stage | Interaction | Behind the scenes |
 | - | - | - |
@@ -67,7 +48,58 @@ and drivers is definitely possible, but may require some work.
 - Task Scheduling on Toit.
 - Interrupts via GPIO on ESP32/Toit.
 
-## Features
+## I want to build one!
+
+### Parts Required/Prerequisites
+This version was prototyped with parts on hand at the time.  Construction with
+other hardware and drivers is totally possible, but may require some rework.
+- **Toit** - The platform needs to be installed on your ESP32, follow the
+  instructions found in Toit's [Getting Started](https://docs.toit.io/getstarted)
+  guide.
+- **ESP32** - I based this on the [DFRobot ESP32c6
+  Beetle](https://wiki.dfrobot.com/SKU_DFR1117_Beetle_ESP32_C6) for the size
+  constraints and (very) basic battery management built-in.)  Other Toit capable
+  ESP32 modules will be compatible, however pin numbers may need to change.  See
+  the guide below.
+- **MPU6050** - I2C based motion sensing module.  (It could be argued that newer
+  devices would be better choices, however this module is still cheaply
+  available and good enough for this use case.  When I have other devices to
+  hand, they cans be incorporated!)
+- **SSD1306** - Common and cheap I2C based OLED Screen.
+- **LED** and resistor for indicating state (Optional).
+- Connecting wires and other minor materials - if you are prototyping this, a
+  good solderless breadboard, wires and other materials will be required.
+- **Lipo battery** compatible with ESP32 board, and the expected device
+  enclosure.  (Warning: polarity of the JST connector on commercial battery
+  modules may not be the same as the JST connector on your ESP32 when
+  they finally meet.)
+
+### Toit Module Dependencies
+After cloning the repository, a `jag install` executed in the project directory
+should install everything required.  (Full credit to their original authors!)
+Toit packages required:
+- [font_x11_adobe](https://github.com/toitlang/pkg-font-x11-adobe)
+- [pixel_display](https://github.com/toitware/toit-pixel-display)
+- [ssd1306](https://github.com/toitware/toit-ssd1306)
+- [pictogrammers_icons](https://github.com/toitware/toit-icons-pictogrammers)
+- [mpu6050](https://github.com/milkmansson/toit-mpu6050)
+
+### Steps
+1. Wire the project together.
+2. Clone this repository, and get into the directory.
+3. Reconcile pin changes etc with the section at the beginning of
+   `project-dice.toit`
+4. Run `jag install`
+5. Try it out by running `jag run .\project-dice.toit
+6. When happy, install as a container, starting with [this
+   guide](https://docs.toit.io/tutorials/containers)
+
+### Wiring
+Follow the wiring diagram here.  Deviations may need to be married up with the
+pin definitions in the source code.
+![project-dice wiring diagram](images/wiring.jpg)
+
+## Feature Implementation
 
 #### This version
 - Most features implemented.
@@ -82,8 +114,8 @@ and drivers is definitely possible, but may require some work.
 - Integrate an SRAM chip (like the 47L16) instead of flash for saving data, to
   help save flash lifetime when collecting roll distribution data, and the
   desire to save it every roll.
-- Code integration with Artemis (use being optional) - for no other reason
-  than to push whats possible, including OTA firmware updates.
+- Code integration with Artemis (use being optional) - for no other reason than
+  to push myself and whats possible, including OTA firmware updates.
 - Refine module selection - find a better ESP32 model with better battery
   management integrated.
 - Experiment/integrate with other MEMS sensors, potentially implement AHRS, ftw.
