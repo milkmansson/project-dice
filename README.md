@@ -1,4 +1,4 @@
-# Project DICE: A small Toit project to showcase MEMS capabilities
+# Project DICE: A small Toit project showcasing MEMS capabilities
 
 ## History
 A short while ago I began a project to create a digital random number generator/dice loaded with a choice of 'bad'
