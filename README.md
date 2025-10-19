@@ -23,7 +23,7 @@ I built this with parts I had on hand.  Construction with other hardware is defi
 - Connecting wires and other minor materials
 - Lipo battery compatible with ESP32 board (Note polarity of commercial battery modules from overseas may not be the same as your ESP32 when they arrive!!)
 
-## How it works (Aka State Machine)
+## How it works (State Machine)
 | Stage | Interaction | Behind the scenes |
 | - | - | - |
 | 1 | Pick up the device to turn it 'On'. | Movement sense triggers interrupt waking ESP from deep sleep |
