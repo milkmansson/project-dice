@@ -31,7 +31,7 @@ implementation.)
 | - | - | - |
 | 1 | Pick up the device to turn it 'On'. | Movement sense triggers interrupt waking ESP from deep sleep |
 | 2 | Set it down so it learns which way is 'up' (the screen provides guidance). | Code examines movement and creates a calibration of 'up' |
-| 3 | Shake up or down to select dice type (interactions via screen) | Using calibration and tuned timing/wait states, select from the menu. Obtain initial selection from storage, and save selected option to storage for later. |
+| 3 | Tilt to select options like dice type (interactions onscreen), tap it against your hand to accept the choice. | Using calibration and tuned timing/wait states, save the options. Obtain initial selection from storage, and save selected options to storage for later use. |
 | 4 | Set the device down for 15s to make the selection | Timer elapses, and selection (nim-roll/max-roll) selected |
 | 5 | Shake the device, numbers adjust internally | Whilst waiting for the device to be set down, continutally consume data from the sensor, and roll together |
 | 6 | When set down, display the 'roll' (plus distribution data, for interest) | Use a mathematical function to reduce collected data into a selection.  Display distribution data, and optionally save the distribution data to non volatile (flash) storage. |
