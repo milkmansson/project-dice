@@ -5,6 +5,7 @@ prefixes:
   pictogrammers_icons: toit-icons-pictogrammers
   pixel_display: toit-pixel-display
   ssd1306: toit-ssd1306
+  tp4057: toit-tp4057
 packages:
   pkg-font-x11-adobe:
     url: github.com/toitlang/pkg-font-x11-adobe
@@ -44,3 +45,10 @@ packages:
     hash: ee2e6e699daa86d961538775aaea642a839025b7
     prefixes:
       pixel_display: toit-pixel-display
+  toit-tp4057:
+    url: github.com/milkmansson/toit-tp4057
+    name: tp4057
+    version: 1.1.0
+    hash: 665f18ecdebf0c936299c66aec75401b8cb1f8a6
+    prefixes:
+      ema: toit-ema

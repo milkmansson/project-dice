@@ -57,14 +57,14 @@ other hardware and drivers is totally possible, but may require some rework.
   instructions found in Toit's [Getting Started](https://docs.toit.io/getstarted)
   guide.
 - **ESP32** - I based this on the [DFRobot ESP32c6
-  Beetle](https://wiki.dfrobot.com/SKU_DFR1117_Beetle_ESP32_C6) for the size
-  constraints and (very) basic battery management built-in.)  Other Toit capable
-  ESP32 modules will be compatible, however pin numbers may need to change.  See
-  the guide below.
+  Beetle](https://wiki.dfrobot.com/SKU_DFR1117_Beetle_ESP32_C6) (v1.1) for the
+  size constraints and (very) basic battery management built-in.)  Other Toit
+  capable ESP32 modules will be compatible, however pin numbers may need to
+  change.  See the guide below.
 - **MPU6050** - I2C based motion sensing module.  (It could be argued that newer
   devices would be better choices, however this module is still cheaply
   available and good enough for this use case.  When I have other devices to
-  hand, they cans be incorporated!)
+  hand, they can be incorporated!)
 - **SSD1306** - Common and cheap I2C based OLED Screen.
 - **LED** and resistor for indicating state (Optional).
 - Connecting wires and other minor materials - if you are prototyping this, a
@@ -98,6 +98,13 @@ Toit packages required:
 Follow the wiring diagram here.  Deviations may need to be married up with the
 pin definitions in the source code.
 ![project-dice wiring diagram](images/wiring.jpg)
+
+### Tuning
+To assist with fine tuning, variables intended for modification are marked by
+the section in the beginning of `project-dice`:
+```
+
+```
 
 ## Feature Implementation
 

@@ -6,8 +6,10 @@ import log
 import gpio
 import i2c
 import math
+import esp32
 import mpu6050 show *
 import encoding.tison
+import tp4057
 
 import ssd1306 show *
 import pixel-display show *
@@ -19,77 +21,78 @@ import font-x11-adobe.sans-08-bold
 import font-x11-adobe.sans-24
 import font-x11-adobe.sans-24-bold
 
-import pictogrammers-icons.size-32 as icons
-
+import pictogrammers-icons.size-32 as icons-32
+import pictogrammers-icons.size-20 as icons-20
 import crypto.sha
 
 /*
 A Toit project for Digital Dice
 
-Originally an arduino project using MKR1010 Wifi hardware with a led matrix
-board, I wanted digital dice (originally D6, but after talking to others,
-D<anything>)  to be able to demonstrate random number generation and at some
-point subtly demonstrate manipulating/determining game outcomes due to bad
-'randomness' in the number generation.
-
-First outcome:  Good Randomness
-
-Second Outcome: Control of dice without using buttons. Envisioned operation:
-  1. Turn on, leave for 5 sec to learn 'up' orientation
-  2. Establish x of Dx: shake 'up' to increase number, 'down' to reduce.
-  3. Leave for 5 sec.
-  4. Shake to create entropy, keep shaking as desired.
-  5. Leave on table for 2 sec to finalise and show digit.
-  6. Repeat 4 through 6.
-  7. After 60 sec go into sleep (or ESP32 Deep Sleep).
-  8. Motion detection (on pin) wakes device again, repeat 4 through 7.
-
-Third Outcome:
-Implementing compromised generation  (not done yet)
-
-Version 1:  First Idea was to following the [work of
-  others](https://gist.github.com/bloc97/b55f684d17edd8f50df8e918cbc00f94) to
-  use accelerometer data, based on the ideas that moving the device twice in
-  exactly the same way is practically impossible.  Not reliable according to
-  some because:
-  - Bias & correlation: neighboring accel bits aren’t i.i.d.; axes are coupled.
-  - Determinism under motion: an attacker (or just vibration) can steer outputs.
-  - Digital filtering: HPF/DLPF settings can reduce true noise if set wrong.
-  - No conditioning: XORs help, but they don’t guarantee uniformity.
-
-Version 2:  Better/combined entropy collection
-
+See README.md
 */
 
-sda-pin-number := 19    // please set these correctly for your device
-scl-pin-number := 20    // please set these correctly for your device
-interrupt-pin-number := 6
+/* .............PLEASE SET VARIABLES BETWEEN HERE................. */
+
+// MOVEMENT DETECTION: Suggested values 20–40mg, for 20–50ms.
+STILL-TO-MOTION-MG := 40   // force required to register motion. Bigger value = more movement required.
+STILL-TO-MOTION-MS := 5    // duration of that force required to register motion. = Bigger value = movement required for longer.
+
+// STILL DETECTION: Suggested values 5–10mg, for 600ms.
+MOTION-TO-STILL-MG := 10   // forces on the device need to be less than this many milli-g's.
+MOTION-TO-STILL-MS := 600  // ... for at least this duration of milliseconds.
+
+SDA-PIN-NUMBER := 19       // please set these correctly for your device
+SCL-PIN-NUMBER := 20       // please set these correctly for your device
+INTERRUPT-PIN-NUMBER := 6  // please set these correctly for your device
+
+/* ..........................AND HERE............................. */
 
 min-roll := 1
-max-roll := 7
+max-roll := 10
+
+// Globals for sharing between functions and tasks
+SCREEN-REFRESH-DURATION := (Duration --ms=250)
+DISTRIBUTION-REFRESH-DURATION := (Duration --ms=1000)
+WAKE-DURATION := (Duration --m=2)
+CHECK-DURATION := (Duration --s=10)
+BATTERY-DISPLAY-REFRESH := (Duration --s=30)
+
+logger/log.Logger := ?
+distribution-map/Map := {:}
+pixel-display := ?
+tasks/Map := {:}
+last-touch-monotonic/int := Time.monotonic-us
+interrupt-pin/gpio.Pin := ?
 
 main:
+  // Prepare Logger
+  logger = log.default.with-name "project-dice"
+
+  // Prepare Variables
   ssd1306-device := ?
   ssd1306-driver := ?
-  pixel-display := ?
+  mpu6050-device := ?
+  mpu6050-driver := ?
 
-  // Enable and drive I2C:
+  // Enable and drive I2C
   frequency := 400_000
-  sda-pin := gpio.Pin sda-pin-number
-  scl-pin := gpio.Pin scl-pin-number
+  sda-pin := gpio.Pin SDA-PIN-NUMBER
+  scl-pin := gpio.Pin SCL-PIN-NUMBER
   bus := i2c.Bus --sda=sda-pin --scl=scl-pin --frequency=frequency
 
-  // Initialise Display, throw if not present.
+  // Initialise Display - stop if not present.
   if not bus.test Ssd1306.I2C-ADDRESS:
-    throw "No SSD1306 display found"
+    logger.error "No SSD1306 display found"
     return
-
   ssd1306-device = bus.device Ssd1306.I2C-ADDRESS // --height=32 for the smaller display
   ssd1306-driver = Ssd1306.i2c ssd1306-device
   pixel-display = PixelDisplay.two-color ssd1306-driver
   pixel-display.background = BLACK
-  pixel-display.draw
 
+  // Enable screen updates in the background regardless of activity
+  start-auto-screen-update
+
+  // Establish Display fonts and styles
   font-sans-24/Font      := Font [sans-24.ASCII, sans-24.LATIN-1-SUPPLEMENT]
   font-sans-24-b/Font    := Font [sans-24-bold.ASCII, sans-24-bold.LATIN-1-SUPPLEMENT]
   style-sans-24-bc/Style  := Style --font=font-sans-24-b --color=WHITE --align-center
@@ -103,24 +106,31 @@ main:
   default-style-map      := Style --type-map={"label": style-sans-08-l} --align-center
   pixel-display.set-styles [default-style-map]
 
+  // Establish display layout: roll location and title bar
   [
-    Label --x=64 --y=10 --id="header"  --style=style-sans-08-bc,
-    Label --x=64 --y=38 --id="info1-c" --style=style-sans-24-bc,
+    Label --x=0   --y=16 --id="header-l"  --style=style-sans-08-l,
+    Label --x=64  --y=10 --id="header-c"  --style=style-sans-08-bc,
+    Label --x=128 --y=10 --id="header-r"  --style=style-sans-08-r,
+    Label --x=0   --y=30 --id="info1-l" --style=style-sans-08-l,
+    Label --x=64  --y=38 --id="info1-c" --style=style-sans-24-bc,
     Label --x=128 --y=30 --id="info1-r" --style=style-sans-08-r,
   ].do: pixel-display.add it
 
+  // Establish running animation but hold on to the label reference for later
   info-icon := Label --x=(ssd1306-driver.width / 2) --y=((ssd1306-driver.height / 2) + 7)  --id="info1-icon" --alignment=ALIGN-CENTER
 
-
+  // Dynamically create rows and columns to display results on SSD.  Works by
+  // calculating positions based on the dice size, and creating dynamically
+  // creating labels for those in the pixel-display object.
+  x-pos := ?
+  y-pos := ?
   row := ?
   column := ?
   roll-index := min-roll
-  x := ?
-  y := ?
   screen-width := ssd1306-driver.width
   screen-rows  := 2
-  screen-columns := ?
   roll-set := max-roll - min-roll + 1
+  screen-columns := 0
   if (roll-set % 2 == 0):
     screen-columns = roll-set / 2
   else:
@@ -129,90 +139,93 @@ main:
 
   screen-rows.repeat:
     row = it
-    y = 50 + (10 * row)
+    y-pos = 50 + (10 * row)
     screen-columns.repeat:
       column = it
-      x = (column * cell-width) + (cell-width / 2)
-      pixel-display.add (Label --id="dist-$(roll-index)" --style=style-sans-08-c --x=x --y=y)
+      x-pos = (column * cell-width) + (cell-width / 2)
+      pixel-display.add (Label --id="dist-$(roll-index)" --style=style-sans-08-c --x=x-pos --y=y-pos)
       roll-index += 1
 
-  header := pixel-display.get-element-by-id "header"
+  header-c := pixel-display.get-element-by-id "header-c"
+  header-r := pixel-display.get-element-by-id "header-r"
   roll-display-text := pixel-display.get-element-by-id "info1-c"
-  //roll-display-icon := pixel-display.get-element-by-id "info1-icon"
-  header.text = "Digital Dice"
+  header-c.text = "Digital Dice"
+  header-r.text = "D$(roll-set)"
   pixel-display.draw
+  logger.info "Dice Range: D$(max-roll - min-roll) ($(min-roll)-$(max-roll))"
 
   if not bus.test Mpu6050.I2C_ADDRESS:
-    print " No Mpu60x0 device found"
+    logger.error "No Mpu60x0 device found."
     return
+  mpu6050-device = bus.device Mpu6050.I2C_ADDRESS
+  mpu6050-driver = Mpu6050 mpu6050-device
 
-  print " Found Mpu60x0 on 0x$(%02x Mpu6050.I2C_ADDRESS)"
-  device := bus.device Mpu6050.I2C_ADDRESS
-  driver := Mpu6050 device
-
-  // Configure Interrupt Pin + Defaults
-  interrupt-pin := gpio.Pin interrupt-pin-number --input
-  driver.set-clock-source Mpu6050.CLOCK-SRC-INTERNAL-8MHZ
-  driver.wakeup-now
+  // Configure Interrupt Pin, Defaults, and wake MPU6050
+  interrupt-pin = gpio.Pin INTERRUPT-PIN-NUMBER --input
+  mpu6050-driver.set-clock-source Mpu6050.CLOCK-SRC-INTERNAL-8MHZ
+  mpu6050-driver.wakeup-now
 
   // Reset all internal signal paths
-  driver.reset-gyroscope
-  driver.reset-accelerometer
-  driver.reset-temperature
+  mpu6050-driver.reset-gyroscope
+  mpu6050-driver.reset-accelerometer
+  mpu6050-driver.reset-temperature
 
   // Disable Unused Bits
-  driver.disable-temperature
+  mpu6050-driver.disable-temperature
 
   // Configure Digital High Pass Filter - so slow tilt doesn’t look like motion.
-  driver.set-accelerometer-high-pass-filter Mpu6050.ACCEL-HPF-0-63HZ
-  // MOT: MOT_THR ~ 20–40 mg, MOT_DUR ~ 20–50 ms.
-  // ZMOT: ZRMOT_THR ~ 5–10 mg, ZRMOT_DUR ~ 250–600 ms.
-  // INT pin latched, “read clears” enabled. Disable FSYNC unless wired.
+  mpu6050-driver.set-accelerometer-high-pass-filter Mpu6050.ACCEL-HPF-0-63HZ
 
   // Set Motion Detection
-  driver.set-motion-detection-duration-ms 40
-  driver.set-motion-detection-threshold-mg 5
-  driver.set-motion-detection-count-decrement-rate 1
+  mpu6050-driver.set-motion-detection-duration-ms STILL-TO-MOTION-MS
+  mpu6050-driver.set-motion-detection-threshold-mg STILL-TO-MOTION-MG
+  mpu6050-driver.set-motion-detection-count-decrement-rate 1
   //driver.enable-motion-detection-interrupt
 
   // Set Zero Motion Detection
-  driver.set-zero-motion-detection-duration-ms 600
-  driver.set-zero-motion-detection-threshold-mg 10
-  driver.enable-zero-motion-detection-interrupt
+  mpu6050-driver.set-zero-motion-detection-duration-ms MOTION-TO-STILL-MS
+  mpu6050-driver.set-zero-motion-detection-threshold-mg MOTION-TO-STILL-MG
+  mpu6050-driver.enable-zero-motion-detection-interrupt
 
   // Set decrement rates and delay for freefall and motion detection
-  driver.set-free-fall-count-decrement-rate 1
-
-  driver.set-acceleration-wake-delay-ms 5
+  mpu6050-driver.set-free-fall-count-decrement-rate 1
+  mpu6050-driver.set-acceleration-wake-delay-ms 5
 
   // Set interrupt pin to go low when activated (original wrote 140 to 0x37)
-  driver.set-interrupt-pin-active-low
-  driver.disable-fsync-pin
+  mpu6050-driver.set-interrupt-pin-active-low
+  mpu6050-driver.disable-fsync-pin
 
   // Set up interaction - keep pin active until values read.
-  driver.enable-interrupt-pin-latching
-  driver.set-interrupt-pin-read-clears
-  driver.set-dlpf-config 3
+  mpu6050-driver.enable-interrupt-pin-latching
+  mpu6050-driver.set-interrupt-pin-read-clears
+  mpu6050-driver.set-dlpf-config 3
 
-  // clear any stale latched flags
-  driver.get-interrupt-status
-
-  // At this point we wait....  When the motion detection triggers, the pin
-  // will activate and we go get a value.
-  // intpt-status := ?
+  // Prepare variables used in the main routine loop
   motdt-status := ?
   entropy-pool := ?
   iteration := ?
   roll/int := ?
-  distribution/Map := {:}
-  (max-roll - min-roll + 1).repeat:
-    distribution[it + 1] = 0
+  roll-count := 0
 
+  // Establish once as oppose to check for exists each roll.
+  (max-roll - min-roll + 1).repeat:
+    distribution-map[it + 1] = 0
+  start-auto-distribution-update
+  start-battery-display-update-task
+
+  // Start sleep watchdog to sleep when not in use
+  //start-sleep-watchdog-task
+
+  // clear any stale latched flags until now
+  mpu6050-driver.get-interrupt-status
+
+  // Main Routine
   while true:
     // Waits for a change in status indicated by the Interrupt Pin
     interrupt-pin.wait-for 0
-    //intpt-status = driver.get-interrupt-status
-    motdt-status = driver.get-motion-detect-status
+    last-touch-monotonic = Time.monotonic-us
+    //intpt-status = mpu6050-driver.get-interrupt-status
+    motdt-status = mpu6050-driver.get-motion-detect-status
 
     // Motion to Zero Motion (Stopping):
     if (motdt-status & Mpu6050.MOT-DETECT-MOT-TO-ZMOT) != 0:
@@ -225,46 +238,120 @@ main:
       entropy-pool = sha.Sha256
       pixel-display.add info-icon
       iteration = 0
-      while interrupt-pin.get != 0:
+      //while interrupt-pin.get != 0:
+      while not ((mpu6050-driver.get-motion-detect-status & Mpu6050.MOT-DETECT-MOT-TO-ZMOT) != 0):
         roll-display-text.text = ""
         if iteration % 2 == 0:
-          info-icon.icon = icons.CACHED
+          info-icon.icon = icons-32.CACHED
         else:
-          info-icon.icon = icons.SYNC
+          info-icon.icon = icons-32.SYNC
         pixel-display.draw
         entropy-pool.add (tison.encode Time.monotonic-us)
-        entropy-pool.add (driver.read-acceleration).to-byte-array
-        entropy-pool.add (driver.read-gyroscope).to-byte-array
+        entropy-pool.add (mpu6050-driver.read-acceleration).to-byte-array
+        entropy-pool.add (mpu6050-driver.read-gyroscope).to-byte-array
         sleep --ms=100
         iteration += 1
 
       roll = sha256-digest-to-range entropy-pool.get --min=min-roll --max=max-roll
-      distribution[roll] += 1
+      distribution-map[roll] += 1
+      roll-count += 1
 
-      print "  You Rolled: $(roll) \t Distribution: $(show-distribution distribution --display=pixel-display)"
+      //logger.info "  You Rolled: $(roll) /($roll-count) \t Distribution: $(show-distribution distribution --display=pixel-display)"
+      logger.info "Dice rolled: $(roll) /($roll-count)"
       pixel-display.remove info-icon
       roll-display-text.text = "$roll"
-
       pixel-display.draw
+
     sleep --ms=250
 
+// set battery management/display tasks
+start-battery-display-update-task -> none:
+  tp4057-driver := tp4057.Tp4057
+  tp4057-driver.set-sampling-size 20
+  tp4057-driver.set-sampling-rate 4
+  tasks["sleep-watchdog"] = task:: task-display-battery-charge tp4057-driver --refresh=BATTERY-DISPLAY-REFRESH
 
-show-distribution dist/Map --display -> string:
-  outstring := ""
+task-display-battery-charge driver/tp4057.Tp4057 --refresh/Duration -> none:
+  logger.info "task-display-battery-charge: started." --tags={"refresh" : refresh.in-ms}
+  soc/float := 0.0
+  plugged/bool := false
+  element/Label := pixel-display.get-element-by-id "header-l"
+  while true:
+    soc = driver.estimate-state-of-charge
+    plugged = driver.is-plugged
+    //logger.info "task-display-battery-charge:" --tags={"soc": "$(%0.2f soc)"}
+    if plugged: element.icon = icons-20.POWER-PLUG
+    else if soc > .9: element.icon = icons-20.BATTERY
+    else if soc > .8: element.icon = icons-20.BATTERY-90
+    else if soc > .7: element.icon = icons-20.BATTERY-80
+    else if soc > .6: element.icon = icons-20.BATTERY-70
+    else if soc > .5: element.icon = icons-20.BATTERY-60
+    else if soc > .4: element.icon = icons-20.BATTERY-50
+    else if soc > .3: element.icon = icons-20.BATTERY-40
+    else if soc > .2: element.icon = icons-20.BATTERY-30
+    else if soc > .1: element.icon = icons-20.BATTERY-20
+    else: element.icon = icons-20.BATTERY-ALERT-VARIANT-OUTLINE
+    sleep refresh
+
+
+// runs in the background and will sleep the device if not touched in DURATION
+start-sleep-watchdog-task -> none:
+  tasks["sleep-watchdog"] = task:: task-sleep-watchdog --wake-duration=WAKE-DURATION --check-duration=CHECK-DURATION
+
+task-sleep-watchdog --wake-duration/Duration --check-duration/Duration -> none:
+  logger.info "task-sleep-watchdog: started." --tags={"delay-s" : WAKE-DURATION.in-s, "freq-ms" : CHECK-DURATION.in-ms}
+  esp32.enable-external-wakeup INTERRUPT-PIN-NUMBER false
+  while true:
+    still-duration := Duration --us=(Time.monotonic-us - last-touch-monotonic)
+    if still-duration > wake-duration:
+      logger.info "task-sleep-watchdog: idle longer than $(wake-duration.in-s)s. Deep Sleep NOW."
+      esp32.deep-sleep (Duration --h=24)
+    sleep check-duration
+
+start-auto-distribution-update -> none:
+  tasks["distribution-update"] = task:: task-display-distribution --sleep-duration=DISTRIBUTION-REFRESH-DURATION
+
+task-display-distribution --sleep-duration/Duration -> none:
+  if distribution-map.is-empty:
+    logger.error "task-display-distribution: ditribution map empty. Cancelling task."
+    return
+  logger.info "task-display-distribution: started." --tags={"freq-ms" : sleep-duration.in-ms}
   sum/int := 0
   percent/int := 0
-  dist.keys.do:
-    sum += dist[it]
-  (display.get-element-by-id "info1-r").text = "/ $(sum)"
-  dist.keys.sort.do:
-    percent = ((dist[it].to-float) / sum * 100).round
-    outstring = "$(outstring) \t [$(it):$(percent)%]"
-    // (display.get-element-by-id "dist-$(it)").text = "$(it): $(percent)%"
-    (display.get-element-by-id "dist-$(it)").text = "$(percent)%"
-  return outstring
+  elements/Map := {:}
+  sum-element/Label := pixel-display.get-element-by-id "info1-r"
+  distribution-map.keys.sort.do:
+    elements[it] = pixel-display.get-element-by-id "dist-$(it)"
+  while true:
+    sum = 0
+    distribution-map.keys.do:
+      sum += distribution-map[it]
+    if sum > 0:
+      sum-element.text = "/ $(sum)"
+      elements.do:
+        percent = ((distribution-map[it].to-float) / sum * 100).round
+        // elements[it].text = "$(it): $(percent)%"
+        elements[it].text = "$(percent)%"
+    sleep sleep-duration
+
+start-auto-screen-update -> none:
+  tasks["screen-update"] = task:: task-update-screen --sleep-duration=SCREEN-REFRESH-DURATION
+
+// Task to update the screen regardless of things going on. Intended to be run
+// as a task.  Will block if run directly.
+task-update-screen --sleep-duration/Duration -> none:
+  logger.info "task-update-screen: started." --tags={"freq-ms" : sleep-duration.in-ms}
+  while true:
+    pixel-display.draw
+    sleep sleep-duration
+
+stop-all-tasks -> none:
+  tasks.keys.do:
+    tasks[it].cancel
+    logger.info "stop-all: stopped task '$(it)'"
 
 
-// Helpers
+// Helper to show the SHA hash as a single string.
 byte-array-to-string array/ByteArray -> string:
   outstring := "$array"
   outstring = outstring.replace "0x" "" --all
@@ -275,6 +362,9 @@ byte-array-to-string array/ByteArray -> string:
   outstring = outstring.replace "]" "" --all
   return outstring
 
+
+// Functions for reducing 32 byte number into specific scale roll.  Credit to
+// the internet community for this help:
 
 // ceil(log2(n)) for n >= 1
 ceil-log2 n/int -> int:
@@ -294,7 +384,9 @@ read-k-bits data/ByteArray offset/int k/int -> int:
   while i < k:
     bit-index := offset + i
     byte-index := bit-index >> 3
-    if byte-index >= data.size: throw "Out of bits"
+    if byte-index >= data.size:
+      logger.error "read-k-bits: out of bits."
+      throw "Out of bits"
     // MSB-first within each byte:
     bit-in-byte := 7 - (bit-index & 7)
     b := data[byte-index]
@@ -303,10 +395,12 @@ read-k-bits data/ByteArray offset/int k/int -> int:
     i += 1
   return value
 
-// Uniformly map a 32-byte SHA-256 digest into [min, max] using only the given bytes.
+// Uniformly map a 32 byte SHA-256 digest into [min, max] using only the given bytes.
 // No extra hashing; uses bit-level rejection sampling within the 256 bits.
 sha256-digest-to-range digest/ByteArray --min/int --max/int -> int:
-  if digest.size != 32: throw "Expected 32-byte SHA-256 digest"
+  if digest.size != 32:
+    logger.error "sha256-digest-to-range: expected 32 byte digest." --tags={"digest-size" : digest.size}
+    throw "Expected 32 byte SHA-256 digest, but got $digest.size bytes."
 
   // Normalize bounds.
   lo := min
@@ -315,7 +409,9 @@ sha256-digest-to-range digest/ByteArray --min/int --max/int -> int:
     t := lo; lo = hi; hi = t
 
   range := hi - lo + 1
-  if range <= 0: throw "Invalid range"
+  if range <= 0:
+    logger.error "sha256-digest-to-range: out of range." --tags={"range" : range}
+    throw "Invalid range"
 
   // Number of bits per draw.
   k := ceil-log2 range
@@ -329,64 +425,11 @@ sha256-digest-to-range digest/ByteArray --min/int --max/int -> int:
     if v < range:
       return lo + v
 
-  // Extremely unlikely for a single selection to reach here.
-  // As a last-resort fallback, do a tiny-bias modulo on all 256 bits.
-  // (Or 'throw' if you prefer zero-bias-or-nothing.)
-  // Convert first to a big int from bytes (MSB-first):
+  // Extremely unlikely for a single selection to reach here. As a last-resort
+  // fallback, do a tiny-bias modulo on all 256 bits. (Or 'throw' where this is
+  // unsuitable.) Convert first to a big int from bytes (MSB-first):
   acc := 0
   digest.do:
     acc = (acc << 8) | it
+  logger.warn "sha256-digest-to-range: last-resort - tiny bias modulo"
   return lo + (acc % range)
-
-
-
-  /**
-  Random Number Generation
-
-  Following blog post: https://gist.github.com/bloc97/b55f684d17edd8f50df8e918cbc00f94
-
-  Text: The MPU6050 is a multipurpose Accelerometer and Gyroscope sensor module
-   for the Arduino, it can read raw acceleration from 3 axis and raw turn rate
-   from 3 orientations. To our surprise, its acceleration sensor's noise level
-   far surpasses its resolution, with at least 4 bits of recorded entropy.
-
-  A naive approach to generate a random byte would to directly take the 4 least
-   significant bits of the x and y axis, XORed with the z axis LSBs. //X, Y, Z
-   are 4-bit values from each axis:
-
-   randomByte := ((Y ^ Z) << 4) | (X ^ Z))
-
-  Unfortunately this method is flawed as the distribution and bias of the noise
-   is different and unpredictable between axes, not to mention other sensors of
-   the same model. A simple fix would be to discard some bits and only use 2 bits
-   from each axis, but that would yield only 6 bits of noise per reading, making
-   it impossible to generate a 8-bit number with only one data sample of the
-   accelerometer.
-
-  However with clever transposition, we can achieve 8 bits of randomness using 4
-   bits that are not necessarily the same magnitude from each axis. We are
-   supposing that the upper 2 bits are not always reliable, so we will XOR each
-   axis' higher 2 bits with another axis' lower 2 bits, and vice-versa.  An
-   important property to note is the "piling-up lemma"[4], which states that
-   XORing a good random source with a bad one is not harmful. Since we have 3
-   axis, each having 4 bits, we will obtain 8 bits at the end. This operation
-   is similar to Convolution:
-
-   randomByte := ((X & 0x3) << 6) ^ (Z << 4) ^ (Y << 2) ^ X ^ (Z >> 2)
-
-  This final method achieves state of the art performance for True Random Number
-   Generation on the Arduino, with our tests providing us around 8000 random bits
-   per second on an Arduino Uno.
-  */
-
-/*
-get-random-number -> int:
-  // Read acceleromter data
-  a-x := read-register_ REG-ACCEL-XOUT_ --signed
-  a-y := read-register_ REG-ACCEL-YOUT_ --signed
-  a-z := read-register_ REG-ACCEL-ZOUT_ --signed
-
-  // Use the second function described above to return a random byte
-  random := ((a-x & 0x3) << 6) ^ (a-z << 4) ^ (a-y << 2) ^ a-x ^ (a-z >> 2)
-  return random
-*/
