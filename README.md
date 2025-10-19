@@ -1,4 +1,5 @@
-# Project DICE: A small Toit project showcasing MEMS capabilities
+# Project D.I.C.E.: A small Toit project showcasing MEMS capabilities
+'Dynamic Inertial Computing of Entropy': Rolling up entropy in motion.
 
 ## History
 A short while ago I began a project to create a digital random number 
