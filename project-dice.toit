@@ -25,6 +25,8 @@ import pictogrammers-icons.size-32 as icons-32
 import pictogrammers-icons.size-20 as icons-20
 import crypto.sha
 
+import system.storage
+
 /*
 A Toit project for Digital Dice
 
@@ -58,7 +60,7 @@ CHECK-DURATION := (Duration --s=10)
 BATTERY-DISPLAY-REFRESH := (Duration --s=30)
 
 logger/log.Logger := ?
-distribution-map/Map := {:}
+distribution-map := ?
 pixel-display := ?
 tasks/Map := {:}
 last-touch-monotonic/int := Time.monotonic-us
@@ -67,6 +69,10 @@ interrupt-pin/gpio.Pin := ?
 main:
   // Prepare Logger
   logger = log.default.with-name "project-dice"
+
+  distribution-map = {:}
+  // Switch from MAP to Ram backed Bucket (for now)
+  //distribution-map = storage.Bucket.open --ram "project-dice"
 
   // Prepare Variables
   ssd1306-device := ?
@@ -249,9 +255,11 @@ main:
         accel-read = mpu6050-driver.read-acceleration
         gyro-read = mpu6050-driver.read-gyroscope
         magnitude = mpu6050-driver.magnitude accel-read
+
+        // Faux Force Meter
         if magnitude > 1.3: circle-count += 1.0
         if circle-count < 1:
-          info-icon.icon = icons-32.CIRCLE-DOUBLE
+          info-icon.icon = icons-32.ALERT-CIRCLE-OUTLINE
         else if circle-count < 2:
           info-icon.icon = icons-32.CIRCLE-SLICE-1
         else if circle-count < 3:
@@ -266,13 +274,18 @@ main:
           info-icon.icon = icons-32.CIRCLE-SLICE-6
         else if circle-count < 8:
           info-icon.icon = icons-32.CIRCLE-SLICE-7
-        else:
+        else if circle-count < 9:
           info-icon.icon = icons-32.CIRCLE-SLICE-8
-
+        else:
+          info-icon.icon = icons-32.CHECK-CIRCLE-OUTLINE
         pixel-display.draw
+
+        // Add data to pool
         entropy-pool.add (tison.encode Time.monotonic-us)
         entropy-pool.add accel-read.to-byte-array
         entropy-pool.add gyro-read.to-byte-array
+
+        // Yield and Iterate
         sleep --ms=100
         iteration += 1
 
