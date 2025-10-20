@@ -206,6 +206,10 @@ main:
   iteration := ?
   roll/int := ?
   roll-count := 0
+  circle-count/float := 0.0
+  accel-read := ?
+  gyro-read := ?
+  magnitude := 0.0
 
   // Establish once as oppose to check for exists each roll.
   (max-roll - min-roll + 1).repeat:
@@ -238,17 +242,37 @@ main:
       entropy-pool = sha.Sha256
       pixel-display.add info-icon
       iteration = 0
+      circle-count = 0.0
       //while interrupt-pin.get != 0:
       while not ((mpu6050-driver.get-motion-detect-status & Mpu6050.MOT-DETECT-MOT-TO-ZMOT) != 0):
         roll-display-text.text = ""
-        if iteration % 2 == 0:
-          info-icon.icon = icons-32.CACHED
+        accel-read = mpu6050-driver.read-acceleration
+        gyro-read = mpu6050-driver.read-gyroscope
+        magnitude = mpu6050-driver.magnitude accel-read
+        if magnitude > 1.3: circle-count += 1.0
+        if circle-count < 1:
+          info-icon.icon = icons-32.CIRCLE-DOUBLE
+        else if circle-count < 2:
+          info-icon.icon = icons-32.CIRCLE-SLICE-1
+        else if circle-count < 3:
+          info-icon.icon = icons-32.CIRCLE-SLICE-2
+        else if circle-count < 4:
+          info-icon.icon = icons-32.CIRCLE-SLICE-3
+        else if circle-count < 5:
+          info-icon.icon = icons-32.CIRCLE-SLICE-4
+        else if circle-count < 6:
+          info-icon.icon = icons-32.CIRCLE-SLICE-5
+        else if circle-count < 7:
+          info-icon.icon = icons-32.CIRCLE-SLICE-6
+        else if circle-count < 8:
+          info-icon.icon = icons-32.CIRCLE-SLICE-7
         else:
-          info-icon.icon = icons-32.SYNC
+          info-icon.icon = icons-32.CIRCLE-SLICE-8
+
         pixel-display.draw
         entropy-pool.add (tison.encode Time.monotonic-us)
-        entropy-pool.add (mpu6050-driver.read-acceleration).to-byte-array
-        entropy-pool.add (mpu6050-driver.read-gyroscope).to-byte-array
+        entropy-pool.add accel-read.to-byte-array
+        entropy-pool.add gyro-read.to-byte-array
         sleep --ms=100
         iteration += 1
 
