@@ -304,8 +304,8 @@ main:
 // set battery management/display tasks
 start-battery-display-update-task -> none:
   tp4057-driver := tp4057.Tp4057
-  tp4057-driver.set-sampling-size 20
-  tp4057-driver.set-sampling-rate 4
+  tp4057-driver.set-sampling-size 10
+  tp4057-driver.set-sampling-rate 10
   tasks["sleep-watchdog"] = task:: task-display-battery-charge tp4057-driver --refresh=BATTERY-DISPLAY-REFRESH
 
 task-display-battery-charge driver/tp4057.Tp4057 --refresh/Duration -> none:
@@ -313,20 +313,22 @@ task-display-battery-charge driver/tp4057.Tp4057 --refresh/Duration -> none:
   soc/float := 0.0
   plugged/bool := false
   element/Label := pixel-display.get-element-by-id "header-l"
+  //header-r := pixel-display.get-element-by-id "header-r"
   while true:
     soc = driver.estimate-state-of-charge
+    //header-r.text = "$(%0.0f soc)"
     plugged = driver.is-plugged
     //logger.info "task-display-battery-charge:" --tags={"soc": "$(%0.2f soc)"}
     if plugged: element.icon = icons-20.POWER-PLUG
-    else if soc > .9: element.icon = icons-20.BATTERY
-    else if soc > .8: element.icon = icons-20.BATTERY-90
-    else if soc > .7: element.icon = icons-20.BATTERY-80
-    else if soc > .6: element.icon = icons-20.BATTERY-70
-    else if soc > .5: element.icon = icons-20.BATTERY-60
-    else if soc > .4: element.icon = icons-20.BATTERY-50
-    else if soc > .3: element.icon = icons-20.BATTERY-40
-    else if soc > .2: element.icon = icons-20.BATTERY-30
-    else if soc > .1: element.icon = icons-20.BATTERY-20
+    else if soc > 90: element.icon = icons-20.BATTERY
+    else if soc > 80: element.icon = icons-20.BATTERY-90
+    else if soc > 70: element.icon = icons-20.BATTERY-80
+    else if soc > 60: element.icon = icons-20.BATTERY-70
+    else if soc > 50: element.icon = icons-20.BATTERY-60
+    else if soc > 40: element.icon = icons-20.BATTERY-50
+    else if soc > 30: element.icon = icons-20.BATTERY-40
+    else if soc > 20: element.icon = icons-20.BATTERY-30
+    else if soc > 10: element.icon = icons-20.BATTERY-20
     else: element.icon = icons-20.BATTERY-ALERT-VARIANT-OUTLINE
     sleep refresh
 
