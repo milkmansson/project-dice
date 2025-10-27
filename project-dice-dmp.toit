@@ -424,11 +424,11 @@ main:
         //print "mag-this-iteration $(mag-this-iteration)"
         if mag-this-iteration > MINIMUM-MAGNITUDE-TO-COUNT:
           magnitude += mag-this-iteration
+          circle-count += 1.0
 
         // Faux Force Meter
         display-mutex.do:
           roll-display-magnitude.text = "$(%0.2f magnitude)"
-          if magnitude > 1.3: circle-count += 1.0
           if circle-count < 1:
             info-icon.icon = icons-32.ALERT-CIRCLE-OUTLINE
           else if circle-count < 2:
