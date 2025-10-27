@@ -81,7 +81,7 @@ WAKE-DURATION := (Duration --s=20)                     // Wait time before deep 
 CHECK-DURATION := (Duration --ms=500)                  // WAKE-DURATION expiry checked this often
 BATTERY-DISPLAY-REFRESH := (Duration --s=30)           // If tp4057 loaded, battery display checked this often
 BUFFER-WATCHDOG-SLEEP-DURATION := (Duration --ms=100)  // If using DMP buffer, the buffer size display is refreshed this often
-MINIMUM-MAGNITUDE-TO-COUNT := 1.4
+MINIMUM-MAGNITUDE-TO-COUNT := 1.3
 
 /* ..........................AND HERE............................. */
 
