@@ -2,17 +2,18 @@ dependencies:
   font_x11_adobe:
     url: github.com/toitlang/pkg-font-x11-adobe
     version: ^0.1.0
-  mpu6050:
-    path: ../Clock/toit-mpu6050
   pictogrammers_icons:
     url: github.com/toitware/toit-icons-pictogrammers
     version: ^1.0.0
   pixel_display:
     url: github.com/toitware/toit-pixel-display
     version: ^2.11.0
+  provision:
+    url: github.com/toitware/toit-provision
+    version: ^2.3.0
   ssd1306:
     url: github.com/toitware/toit-ssd1306
     version: ^2.0.1
   tp4057:
     url: github.com/milkmansson/toit-tp4057
-    version: ^1.1.0
+    version: ^1.2.0

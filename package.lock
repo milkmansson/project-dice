@@ -1,9 +1,9 @@
 sdk: ^2.0.0-alpha.188
 prefixes:
   font_x11_adobe: pkg-font-x11-adobe
-  mpu6050: toit-mpu6050
   pictogrammers_icons: toit-icons-pictogrammers
   pixel_display: toit-pixel-display
+  provision: toit-provision
   ssd1306: toit-ssd1306
   tp4057: toit-tp4057
 packages:
@@ -15,17 +15,13 @@ packages:
   toit-ema:
     url: github.com/milkmansson/toit-ema
     name: ema
-    version: 1.0.0
-    hash: 352b4998688fbbf5a740d3471c2fe5457aa3225e
+    version: 1.2.0
+    hash: 3acf28cde4c2b99c36424d23663d58d1479dc316
   toit-icons-pictogrammers:
     url: github.com/toitware/toit-icons-pictogrammers
     name: pictogrammers_icons
     version: 1.0.0
     hash: 5ac660cc480d5da1fec72e1b24d425ce978419b7
-  toit-mpu6050:
-    path: ../Clock/toit-mpu6050
-    prefixes:
-      ema: toit-ema
   toit-pixel-display:
     url: github.com/toitware/toit-pixel-display
     name: pixel_display
@@ -38,6 +34,18 @@ packages:
     name: png-tools
     version: 1.0.0
     hash: ee472ac9d4333a138206f9d3a817d3c5432d6f87
+  toit-protobuf:
+    url: github.com/toitware/toit-protobuf
+    name: protobuf
+    version: 1.4.0
+    hash: 82332e8244bbe97cddd43fb73bab521be56f9d78
+  toit-provision:
+    url: github.com/toitware/toit-provision
+    name: provision
+    version: 2.3.0
+    hash: 446fff1b4c34f2f6670483f47435608d40175a39
+    prefixes:
+      protobuf: toit-protobuf
   toit-ssd1306:
     url: github.com/toitware/toit-ssd1306
     name: ssd1306
@@ -48,7 +56,7 @@ packages:
   toit-tp4057:
     url: github.com/milkmansson/toit-tp4057
     name: tp4057
-    version: 1.1.0
-    hash: 665f18ecdebf0c936299c66aec75401b8cb1f8a6
+    version: 1.2.0
+    hash: b908293b2a5f55ece1f5eb54bcf4572d4fdd9a50
     prefixes:
       ema: toit-ema

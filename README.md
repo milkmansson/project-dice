@@ -109,11 +109,15 @@ the section in the beginning of `project-dice`:
 ## Feature Implementation
 
 #### This version
+- Currently uses accelerometer values neat, does not use linear acceleration (removing gravity).
+- Provides a simple movement animation - tallies the (gravity influenced) force measurements.
+- Implement deep sleep after a timeout.
+- Use RAM-backed Buckets to keep the distribution map between sleep/wake cycles.
+- Provide screen feedback about battery and charge (currently uses DFRobot ESP32c6 with tp4057 built-in).
 - Most features implemented.
 - Menu selection incomplete, but underway.
 
 #### To-Do list
-- Provide better screen feedback about battery and charge.
 - Provide a more interesting movement animation - perhaps a realtime plot/
   animation of force.
 - Have generated data sent to an online destination, for better statistical
