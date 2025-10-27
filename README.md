@@ -107,6 +107,17 @@ Toit packages required:
 ### Tuning
 To assist with fine tuning, variables intended for modification are marked by
 the section in the beginning of `project-dice`:
+Dice Selection:
+```
+// Configure for a D12:
+min-roll := 1
+max-roll := 12
+
+// Configure for a D6 (normal dice):
+min-roll := 1
+max-roll := 6
+```
+Movement Detection Thresholds:
 ```Toit
 // MOVEMENT DETECTION: Suggested values 20–40mg, for 20–50ms.
 
