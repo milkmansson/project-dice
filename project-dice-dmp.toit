@@ -75,9 +75,6 @@ ESP32S3-INTERRUPT-PIN := 4
 min-roll := 1
 max-roll := 12
 
-/* ..........................AND HERE............................. */
-
-// Globals for sharing between functions and tasks
 SCREEN-REFRESH-DURATION := (Duration --ms=250)         // Screen refreshes this often even if nothing is happening
 DISTRIBUTION-REFRESH-DURATION := (Duration --ms=1000)  // Distribution display refreshes this often
 WAKE-DURATION := (Duration --s=20)                     // Wait time before deep sleep
@@ -85,6 +82,9 @@ CHECK-DURATION := (Duration --ms=500)                  // WAKE-DURATION expiry c
 BATTERY-DISPLAY-REFRESH := (Duration --s=30)           // If tp4057 loaded, battery display checked this often
 BUFFER-WATCHDOG-SLEEP-DURATION := (Duration --ms=100)  // If using DMP buffer, the buffer size display is refreshed this often
 MINIMUM-MAGNITUDE-TO-COUNT := 1.4
+
+/* ..........................AND HERE............................. */
+
 G0 := 9.80665
 
 // Provisioning sec variables:
