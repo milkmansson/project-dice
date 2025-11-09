@@ -33,12 +33,18 @@ implementation.)
 | 1 | Pick up the device to turn it 'On'. | Movement sense triggers interrupt waking ESP from deep sleep | Yes |
 | 2 | Set it down so it learns which way is 'up' (the screen provides guidance). | Code examines movement and creates a calibration of 'up' | Yes |
 | 3 | Screen Feedback | Provide constant feedback of things like battery and charge.  (Show roll distribution from before going to sleep). | Yes |
-| 4 | Double-tap the table with the device to enter config menu. Tilt forward and backward to select options, like dice type, etc (interactions onscreen), tap it again to accept the choice. | Using calibration and tuned timing/wait states, save the options. Obtain initial selection from storage, and save selected options to storage for later use. | Not yet. Want to implement with DMP, still writing this driver. |
-| 5 | Double tap, or set the device down for 15s to exit config and use the selections. | Timer elapses, and selection (nim-roll/max-roll) selected | Not yet. Want to implement with DMP but still working on  this driver. |
+| 4 | Double-tap the table with the device to enter config menu. Tilt forward and backward to select options, like dice type, etc (interactions onscreen), tap it again to accept the choice. | Using calibration and tuned timing/wait states, save the options. Obtain initial selection from storage, and save selected options to storage for later use. | Not yet. Want to implement with DMP*, still writing this driver. |
+| 5 | Double tap, or set the device down for 15s to exit config and use the selections. | Timer elapses, and selection (nim-roll/max-roll) selected | Not yet. Want to implement with DMP* but still working on this driver. |
 | 6 | Shake the device, numbers adjust internally. | Whilst waiting for the device to be set down, continutally consume data from the sensor, and roll together | Yes |
 | 7 | When set down, display the 'roll' (plus distribution data, for interest) | Use a mathematical function to reduce collected data into a selection.  Display distribution data, and optionally save the distribution data to RAM-backed storage. | Yes |
 | 8 | Wait.  Do another roll when moved (goto 5). | Use zero-motion-to-motion detection on the sensor to determine if shaking or resting | Yes |
 | 9 | After 120s, go to deep sleep (off).  | Using monotonic time, wait for a (configurable) timer to expire and run the ESP32 command. | Yes |
+
+* **DMP:** (hardware-implemented) Digital Motion Processing.  This senses
+  things like taps, step counting, and other things.  MEMs devices like the
+  MPU6050 and others have this capability, but requires extra steps in the
+  driver.  Without this, it would be up to this code to determine what
+  movement was a shake, and what movement was a tap, for example.
 
 ## Worked examples/techniques in the source code
 - Use of I2C throughout.
