@@ -72,8 +72,9 @@ ESP32S3-SDA-PIN := 8
 ESP32S3-SCL-PIN := 9
 ESP32S3-INTERRUPT-PIN := 4
 
+// Dice definition
 min-roll := 1
-max-roll := 12
+max-roll := 6
 
 SCREEN-REFRESH-DURATION := (Duration --ms=250)         // Screen refreshes this often even if nothing is happening
 DISTRIBUTION-REFRESH-DURATION := (Duration --ms=1000)  // Distribution display refreshes this often
@@ -375,7 +376,7 @@ main:
   if mpu6050-driver.is-dmp-enabled: start-buffer-watchdog-task
   sleep --ms=100
 
-  // Start sleep watchdog to sleep when not in use
+  // Start sleep watchdog to sleep when not in use.  Not possible on S3:
   start-sleep-watchdog-task
 
   // clear any stale latched flags until now
@@ -558,7 +559,7 @@ start-sleep-watchdog-task -> none:
   // RESET-DEEPSLEEP and wakeup-cause is set to WAKEUP-EXT1.
   cause := esp32.wakeup-cause
   if cause == esp32.WAKEUP-EXT1:
-    logger.info "start-sleep-watchdog-task: previous wakeup caused by pin."
+    logger.info "start-sleep-watchdog-task: previous wakeup caused by alert pin."
   else if cause == esp32.WAKEUP-TOUCHPAD:
     logger.info "start-sleep-watchdog-task: previous wakeup caused by wakeup-touchpad."
   else if cause == esp32.WAKEUP-GPIO:
